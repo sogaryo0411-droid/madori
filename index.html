@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="間取り">
+  <meta name="theme-color" content="#1f2933">
+  <title>間取りレイアウト</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/konva@9.3.22/konva.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>間取りレイアウト</h1>
+    <span id="status" class="status"></span>
+  </header>
+
+  <main id="canvas-wrap">
+    <div id="stage"></div>
+    <div id="empty" class="empty">
+      <p>間取り図の画像を読み込んでね</p>
+      <button type="button" class="btn btn-primary" data-action="pick-image">画像を選ぶ</button>
+      <button type="button" class="btn" data-action="import-json">バックアップ(JSON)から復元</button>
+    </div>
+
+    <!-- 縮尺設定中の案内と入力（キーボードに隠れないよう上に出す） -->
+    <div id="calib-panel" class="panel" hidden>
+      <p id="calib-hint" class="panel-hint"></p>
+      <form id="calib-form" class="calib-form" hidden>
+        <input id="calib-mm" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="例 3600">
+        <span>mm</span>
+        <button type="submit" class="btn btn-primary" id="calib-ok">次へ</button>
+      </form>
+    </div>
+    <canvas id="loupe" class="loupe" width="240" height="240" hidden></canvas>
+  </main>
+
+  <!-- 通常時 -->
+  <nav id="bar-main" class="toolbar">
+    <button type="button" data-action="menu"><span class="ico">☰</span><span>メニュー</span></button>
+    <button type="button" data-action="calibrate" data-need="image"><span class="ico">📏</span><span>縮尺</span></button>
+    <button type="button" data-action="grid" data-need="scale" id="btn-grid"><span class="ico">#</span><span>グリッド</span></button>
+    <button type="button" data-action="add-furniture" data-need="scale"><span class="ico">＋</span><span>家具</span></button>
+    <button type="button" data-action="fit" data-need="image"><span class="ico">⤢</span><span>全体表示</span></button>
+  </nav>
+
+  <!-- 家具を選択中 -->
+  <nav id="bar-furn" class="toolbar" hidden>
+    <button type="button" data-action="furn-rotate"><span class="ico">⟳</span><span>90°回転</span></button>
+    <button type="button" data-action="furn-duplicate"><span class="ico">⧉</span><span>複製</span></button>
+    <button type="button" data-action="furn-edit"><span class="ico">✎</span><span>編集</span></button>
+    <button type="button" data-action="furn-delete" class="danger"><span class="ico">🗑</span><span>削除</span></button>
+    <button type="button" data-action="furn-done"><span class="ico">✓</span><span>完了</span></button>
+  </nav>
+
+  <!-- 縮尺設定中 -->
+  <nav id="bar-calib" class="toolbar" hidden>
+    <button type="button" data-action="calib-cancel"><span class="ico">✕</span><span>やめる</span></button>
+    <button type="button" data-action="calib-retry"><span class="ico">↺</span><span>点を置き直す</span></button>
+    <button type="button" data-action="fit"><span class="ico">⤢</span><span>全体表示</span></button>
+  </nav>
+
+  <dialog id="dlg-furniture" class="dialog">
+    <form id="furniture-form" method="dialog">
+      <h2 id="furniture-title" tabindex="-1" autofocus>家具を追加</h2>
+      <label class="field">
+        <span>よくある家具から選ぶ</span>
+        <select id="f-preset">
+          <option value="">（自分で入力）</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>名前</span>
+        <input id="f-name" type="text" maxlength="20" autocomplete="off" placeholder="例 ソファ">
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>幅 (mm)</span>
+          <input id="f-w" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" required>
+        </label>
+        <label class="field">
+          <span>奥行 (mm)</span>
+          <input id="f-d" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" required>
+        </label>
+      </div>
+      <div class="field">
+        <span>色</span>
+        <div id="f-colors" class="swatches"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" data-action="furniture-cancel">キャンセル</button>
+        <button type="submit" class="btn btn-primary" id="f-submit">追加</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-menu" class="dialog">
+    <h2>メニュー</h2>
+    <div class="menu-list">
+      <button type="button" class="btn" data-action="export-png" data-need="image">レイアウトを画像(PNG)で保存</button>
+      <button type="button" class="btn" data-action="export-json" data-need="image">バックアップ(JSON)を書き出す</button>
+      <button type="button" class="btn" data-action="import-json">バックアップ(JSON)を読み込む</button>
+      <button type="button" class="btn" data-action="pick-image">間取り図の画像を差し替える</button>
+      <button type="button" class="btn btn-danger-outline" data-action="reset-all">すべて消して最初から</button>
+      <button type="button" class="btn" data-action="menu-close">閉じる</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-share" class="dialog">
+    <h2>保存の準備ができたよ</h2>
+    <p>下のボタンを押すと共有メニューが開く。「画像を保存」や「"ファイル"に保存」を選んでね。</p>
+    <div class="dialog-actions">
+      <button type="button" class="btn" data-share="cancel">やめる</button>
+      <button type="button" class="btn btn-primary" data-share="ok">保存する</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-warn" class="dialog">
+    <form method="dialog">
+      <h2>縦横の縮尺がずれてる</h2>
+      <p id="warn-msg"></p>
+      <div class="dialog-actions">
+        <button class="btn" value="retry">やり直す</button>
+        <button class="btn btn-primary" value="accept">平均値で使う</button>
+      </div>
+    </form>
+  </dialog>
+
+  <input id="file-image" type="file" accept="image/*" hidden>
+  <input id="file-json" type="file" accept=".json,application/json" hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
